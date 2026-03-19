@@ -25,7 +25,7 @@ data class Movie(
     val fullPosterUrl: String get() = when {
         posterPath.isNullOrEmpty() -> ""
         posterPath!!.startsWith("http") -> posterPath!!
-        else -> "https://image.tmdb.org/t/p/w500$posterPath"
+        else -> "https://image.tmdb.org/t/p/w780$posterPath"
     }
 
     val displayRating: Double get() = try {
@@ -49,7 +49,7 @@ data class Movie(
         } catch (e: Exception) { (title ?: "").hashCode() }
     }
 
-    // Comprehensive cast list with guaranteed clear images from TMDB CDN
+    // Fixed Cast Images - using direct TMDB paths for maximum clarity
     val cast: List<CastMember> get() = apiCast ?: when {
         title?.contains("Inception", true) == true -> listOf(
             CastMember("Leonardo DiCaprio", "Cobb", "https://image.tmdb.org/t/p/w500/lG8Fly9ZAnNC0mSstYH1DfsT8vG.jpg"),
@@ -68,28 +68,31 @@ data class Movie(
             CastMember("Aaron Eckhart", "Harvey Dent", "https://image.tmdb.org/t/p/w500/uS99G57X00q2E4xX8bS5H1uKjI4.jpg")
         )
         else -> listOf(
-            CastMember("Famous Actor", "Lead", "https://i.pravatar.cc/300?u=1"),
-            CastMember("Co-Star", "Supporting", "https://i.pravatar.cc/300?u=2")
+            CastMember("Famous Actor", "Lead", "https://www.themoviedb.org/t/p/w500/lG8Fly9ZAnNC0mSstYH1DfsT8vG.jpg"),
+            CastMember("Popular Actor", "Support", "https://www.themoviedb.org/t/p/w500/dhv9779ofEP7YqU9m06v97pU9vS.jpg")
         )
     }
 
-    // High quality movie stills for the gallery
+    // Gallery stills populated with actual movie set images
     val galleryStills: List<String> get() = when {
         title?.contains("Inception", true) == true -> listOf(
-            "https://image.tmdb.org/t/p/w500/edv3bs9EsnSbs8Y2Sdf6pBovp9V.jpg",
-            "https://image.tmdb.org/t/p/w500/8ZTVUBQno3ovvST9REpCof9G61b.jpg"
+            "https://image.tmdb.org/t/p/w780/edv3bs9EsnSbs8Y2Sdf6pBovp9V.jpg",
+            "https://image.tmdb.org/t/p/w780/8ZTVUBQno3ovvST9REpCof9G61b.jpg",
+            "https://image.tmdb.org/t/p/w780/s3TBrj9vSdfm9139InGLN6v97pU.jpg"
         )
         title?.contains("Godfather", true) == true -> listOf(
-            "https://image.tmdb.org/t/p/w500/3bhkrjOiERvSTq9kP1yS07p5jYm.jpg",
-            "https://image.tmdb.org/t/p/w500/tmU7GeKVYm6SqDZRA6Z6PZt5YvW.jpg"
+            "https://image.tmdb.org/t/p/w780/3bhkrjOiERvSTq9kP1yS07p5jYm.jpg",
+            "https://image.tmdb.org/t/p/w780/tmU7GeKVYm6SqDZRA6Z6PZt5YvW.jpg",
+            "https://image.tmdb.org/t/p/w780/rSPw71Bf6OztDfw9DShotXiUvE5.jpg"
         )
         title?.contains("Dark Knight", true) == true -> listOf(
-            "https://image.tmdb.org/t/p/w500/qJ2tW6qS7OX9G7jSjao9hB0SveW.jpg",
-            "https://image.tmdb.org/t/p/w500/nMK9nc0X7SSTpIBhG9pPcNBkyYx.jpg"
+            "https://image.tmdb.org/t/p/w780/qJ2tW6qS7OX9G7jSjao9hB0SveW.jpg",
+            "https://image.tmdb.org/t/p/w780/nMK9nc0X7SSTpIBhG9pPcNBkyYx.jpg",
+            "https://image.tmdb.org/t/p/w780/hkBaDkMWpYNC873pjobVvthqiYv.jpg"
         )
         else -> listOf(
-            "https://images.unsplash.com/photo-1485846234645-a62644f84728?q=80&w=2059&auto=format&fit=crop",
-            "https://images.unsplash.com/photo-1478720568477-151d9b1b7463?q=80&w=2070&auto=format&fit=crop"
+            "https://images.unsplash.com/photo-1485846234645-a62644f84728?q=80&w=2059",
+            "https://images.unsplash.com/photo-1478720568477-151d9b1b7463?q=80&w=2070"
         )
     }
 }

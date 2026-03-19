@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -250,9 +251,9 @@ fun MovieListScreen(viewModel: MovieViewModel, theme: AppTheme) {
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MovieRed,
                 unfocusedBorderColor = textColor.copy(alpha = 0.3f),
-                cursorColor = MovieRed,
                 focusedTextColor = textColor,
-                unfocusedTextColor = textColor
+                unfocusedTextColor = textColor,
+                cursorColor = MovieRed
             ),
             singleLine = true
         )
@@ -265,28 +266,26 @@ fun MovieListScreen(viewModel: MovieViewModel, theme: AppTheme) {
                 selected = sortOrder == SortOrder.HIGH_RATING,
                 onClick = { 
                     viewModel.onSortOrderChange(SortOrder.HIGH_RATING)
-                    scope.launch { gridState.scrollToItem(0) }
+                    scope.launch { gridState.animateScrollToItem(0) }
                 },
                 label = { Text("High Rating") },
                 colors = FilterChipDefaults.filterChipColors(
                     labelColor = textColor,
                     selectedLabelColor = Color.White,
-                    selectedContainerColor = MovieRed,
-                    containerColor = Color.Transparent
+                    selectedContainerColor = MovieRed
                 )
             )
             FilterChip(
                 selected = sortOrder == SortOrder.LOW_RATING,
                 onClick = { 
                     viewModel.onSortOrderChange(SortOrder.LOW_RATING)
-                    scope.launch { gridState.scrollToItem(0) }
+                    scope.launch { gridState.animateScrollToItem(0) }
                 },
                 label = { Text("Low Rating") },
                 colors = FilterChipDefaults.filterChipColors(
                     labelColor = textColor,
                     selectedLabelColor = Color.White,
-                    selectedContainerColor = MovieRed,
-                    containerColor = Color.Transparent
+                    selectedContainerColor = MovieRed
                 )
             )
         }
@@ -441,7 +440,7 @@ fun MovieDetailDialog(movie: Movie, theme: AppTheme, onDismiss: () -> Unit) {
             shape = RoundedCornerShape(24.dp)
         ) {
             Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                Box(modifier = Modifier.fillMaxWidth().height(250.dp)) {
+                Box(modifier = Modifier.fillMaxWidth().height(300.dp)) {
                     AsyncImage(
                         model = movie.fullPosterUrl,
                         contentDescription = null,
