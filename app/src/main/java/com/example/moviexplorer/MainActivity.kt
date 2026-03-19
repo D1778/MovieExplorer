@@ -1,42 +1,37 @@
 package com.example.moviexplorer
-//used jetpack, retrofit, room, navigation, work manager, coil
-import android.content.res.Configuration
+
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.*
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -44,7 +39,6 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -58,6 +52,7 @@ import com.example.moviexplorer.data.remote.MovieApiService
 import com.example.moviexplorer.data.repository.MovieRepository
 import com.example.moviexplorer.ui.theme.*
 import com.example.moviexplorer.viewmodel.MovieViewModel
+import com.example.moviexplorer.viewmodel.SortOrder
 import com.example.moviexplorer.worker.RentalWorker
 import kotlinx.coroutines.launch
 import retrofit2.Retrofit
@@ -126,16 +121,16 @@ fun MainAppContent(
     val viewModel: MovieViewModel = viewModel(factory = factory)
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-    val configuration = LocalConfiguration.current
 
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet(
+                modifier = Modifier.width(260.dp),
                 drawerContainerColor = themeColors.first,
                 drawerContentColor = if (currentTheme == AppTheme.LIGHT) Color.Black else Color.White
             ) {
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(48.dp))
                 Text(
                     "NAVIGATION",
                     modifier = Modifier.padding(16.dp),
@@ -166,8 +161,6 @@ fun MainAppContent(
         }
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // Using your local drawable 'img' as the background image
-            // We increase the alpha slightly and ensure it's not fully covered by the gradient
             Image(
                 painter = painterResource(id = R.drawable.img),
                 contentDescription = null,
@@ -175,12 +168,11 @@ fun MainAppContent(
                 contentScale = ContentScale.Crop
             )
             
-            // Semi-transparent overlay to make the content readable while keeping the background visible
             Box(modifier = Modifier.fillMaxSize().background(
                 Brush.verticalGradient(
                     listOf(
-                        themeColors.first.copy(alpha = 0.7f), 
-                        themeColors.second.copy(alpha = 0.8f)
+                        themeColors.first.copy(alpha = 0.75f), 
+                        themeColors.second.copy(alpha = 0.85f)
                     )
                 )
             ))
@@ -210,7 +202,7 @@ fun MainAppContent(
                                 }
                                 onThemeChange(nextTheme)
                             }) {
-                                Icon(Icons.Default.Settings, contentDescription = "Switch Theme")
+                                Icon(Icons.Default.Palette, contentDescription = "Switch Theme")
                             }
                             IconButton(onClick = { viewModel.fetchMovies() }) {
                                 Icon(Icons.Default.Refresh, contentDescription = "Refresh")
@@ -225,10 +217,10 @@ fun MainAppContent(
                     modifier = Modifier.padding(padding)
                 ) {
                     composable("movie_list") {
-                        MovieListScreen(viewModel, currentTheme, configuration)
+                        MovieListScreen(viewModel, currentTheme)
                     }
                     composable("rental_list") {
-                        RentalScreen(viewModel, currentTheme, configuration)
+                        RentalScreen(viewModel, currentTheme)
                     }
                 }
             }
@@ -236,45 +228,101 @@ fun MainAppContent(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MovieListScreen(viewModel: MovieViewModel, theme: AppTheme, config: Configuration) {
+fun MovieListScreen(viewModel: MovieViewModel, theme: AppTheme) {
     val movies by viewModel.movies.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val sortOrder by viewModel.sortOrder.collectAsState()
     val textColor = if (theme == AppTheme.LIGHT) Color.Black else Color.White
+    val gridState = rememberLazyGridState()
+    val scope = rememberCoroutineScope()
 
-    if (isLoading) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = MovieRed)
-        }
-    } else if (movies.isEmpty()) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(16.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
+    Column(modifier = Modifier.fillMaxSize()) {
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { viewModel.onSearchQueryChange(it) },
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            placeholder = { Text("Search movies...", color = textColor.copy(alpha = 0.5f)) },
+            leadingIcon = { Icon(Icons.Default.Search, null, tint = textColor) },
+            shape = RoundedCornerShape(8.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MovieRed,
+                unfocusedBorderColor = textColor.copy(alpha = 0.3f),
+                cursorColor = MovieRed,
+                focusedTextColor = textColor,
+                unfocusedTextColor = textColor
+            ),
+            singleLine = true
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("No movies found.", color = textColor, textAlign = TextAlign.Center)
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = { viewModel.fetchMovies() }, colors = ButtonDefaults.buttonColors(containerColor = MovieRed)) {
-                Text("Retry")
-            }
-            TextButton(onClick = { viewModel.loadMockData() }) {
-                Text("Use Mock Data", color = textColor.copy(alpha = 0.7f))
-            }
+            FilterChip(
+                selected = sortOrder == SortOrder.HIGH_RATING,
+                onClick = { 
+                    viewModel.onSortOrderChange(SortOrder.HIGH_RATING)
+                    scope.launch { gridState.scrollToItem(0) }
+                },
+                label = { Text("High Rating") },
+                colors = FilterChipDefaults.filterChipColors(
+                    labelColor = textColor,
+                    selectedLabelColor = Color.White,
+                    selectedContainerColor = MovieRed,
+                    containerColor = Color.Transparent
+                )
+            )
+            FilterChip(
+                selected = sortOrder == SortOrder.LOW_RATING,
+                onClick = { 
+                    viewModel.onSortOrderChange(SortOrder.LOW_RATING)
+                    scope.launch { gridState.scrollToItem(0) }
+                },
+                label = { Text("Low Rating") },
+                colors = FilterChipDefaults.filterChipColors(
+                    labelColor = textColor,
+                    selectedLabelColor = Color.White,
+                    selectedContainerColor = MovieRed,
+                    containerColor = Color.Transparent
+                )
+            )
         }
-    } else {
-        if (config.orientation == Configuration.ORIENTATION_LANDSCAPE) {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                modifier = Modifier.fillMaxSize()
+
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = MovieRed)
+            }
+        } else if (movies.isEmpty()) {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(16.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                items(movies) { movie ->
-                    MovieItem(movie, theme, onRentClick = { viewModel.rentMovie(movie) })
+                Text("No movies found.", color = textColor, textAlign = TextAlign.Center)
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = { viewModel.fetchMovies() },
+                    colors = ButtonDefaults.buttonColors(containerColor = MovieRed),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Retry")
+                }
+                TextButton(onClick = { viewModel.loadMockData() }) {
+                    Text("Use Mock Data", color = textColor.copy(alpha = 0.7f))
                 }
             }
         } else {
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(movies) { movie ->
-                    MovieItem(movie, theme, onRentClick = { viewModel.rentMovie(movie) })
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                state = gridState,
+                modifier = Modifier.fillMaxSize().padding(8.dp),
+                contentPadding = PaddingValues(bottom = 16.dp)
+            ) {
+                items(movies, key = { it.getStableId() }) { movie ->
+                    MovieGridItem(movie, theme, onRentClick = { viewModel.rentMovie(movie) })
                 }
             }
         }
@@ -282,7 +330,7 @@ fun MovieListScreen(viewModel: MovieViewModel, theme: AppTheme, config: Configur
 }
 
 @Composable
-fun MovieItem(movie: Movie, theme: AppTheme, onRentClick: () -> Unit) {
+fun MovieGridItem(movie: Movie, theme: AppTheme, onRentClick: () -> Unit) {
     val textColor = if (theme == AppTheme.LIGHT) Color.Black else Color.White
     var showDetail by remember { mutableStateOf(false) }
 
@@ -291,43 +339,72 @@ fun MovieItem(movie: Movie, theme: AppTheme, onRentClick: () -> Unit) {
     }
 
     Card(
-        modifier = Modifier.padding(12.dp).fillMaxWidth(),
+        modifier = Modifier.padding(8.dp).aspectRatio(0.65f).fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = textColor.copy(alpha = 0.15f)),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(8.dp)
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(4.dp)
     ) {
-        Row(modifier = Modifier.padding(12.dp)) {
-            AsyncImage(
-                model = movie.fullPosterUrl,
-                placeholder = painterResource(R.drawable.movie_placeholder),
-                error = painterResource(R.drawable.image_error),
-                contentDescription = null,
-                modifier = Modifier.size(100.dp).clip(RoundedCornerShape(8.dp)),
-                contentScale = ContentScale.Crop
-            )
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = movie.title ?: "", color = textColor, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                RatingDisplay(rating = movie.displayRating)
+        Column(modifier = Modifier.fillMaxSize()) {
+            Box(modifier = Modifier.weight(1f)) {
+                AsyncImage(
+                    model = movie.fullPosterUrl,
+                    placeholder = painterResource(R.drawable.movie_placeholder),
+                    error = painterResource(R.drawable.image_error),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+                RatingBadge(rating = movie.displayRating, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp))
+            }
+            
+            Column(modifier = Modifier.padding(8.dp)) {
+                Text(
+                    text = movie.title ?: "",
+                    color = textColor,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
                 Spacer(modifier = Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Button(
                         onClick = onRentClick,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).height(36.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MovieRed),
+                        shape = RoundedCornerShape(8.dp),
                         contentPadding = PaddingValues(0.dp)
                     ) {
-                        Text("Rent", fontSize = 12.sp)
+                        Text("Rent", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                     OutlinedButton(
                         onClick = { showDetail = true },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).height(36.dp),
+                        shape = RoundedCornerShape(8.dp),
                         contentPadding = PaddingValues(0.dp)
                     ) {
                         Text("Detail", color = textColor, fontSize = 12.sp)
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun RatingBadge(rating: Double, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        color = Color.Black.copy(alpha = 0.7f),
+        shape = RoundedCornerShape(4.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Star, null, tint = MovieGold, modifier = Modifier.size(12.dp))
+            Spacer(modifier = Modifier.width(2.dp))
+            Text(text = "$rating", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -380,7 +457,7 @@ fun MovieDetailDialog(movie: Movie, theme: AppTheme, onDismiss: () -> Unit) {
                 }
                 
                 Column(modifier = Modifier.padding(20.dp)) {
-                    Text(text = movie.title ?: "", color = textColor, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp)
+                    Text(text = movie.title ?: "", color = textColor, fontWeight = FontWeight.ExtraBold, fontSize = 26.sp)
                     RatingDisplay(rating = movie.displayRating)
                     
                     Spacer(modifier = Modifier.height(16.dp))
@@ -392,19 +469,19 @@ fun MovieDetailDialog(movie: Movie, theme: AppTheme, onDismiss: () -> Unit) {
                     Spacer(modifier = Modifier.height(8.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         items(movie.cast) { member ->
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(90.dp)) {
                                 AsyncImage(
                                     model = member.imageUrl,
                                     contentDescription = null,
-                                    modifier = Modifier.size(60.dp).clip(CircleShape),
+                                    modifier = Modifier.size(80.dp).clip(CircleShape),
                                     contentScale = ContentScale.Crop
                                 )
-                                Text(member.name, color = textColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                Text(member.name, color = textColor, fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 2)
+                                Text(member.role, color = textColor.copy(alpha = 0.6f), fontSize = 9.sp, textAlign = TextAlign.Center, maxLines = 1)
                             }
                         }
                     }
                     
-                    // Small plot details below cast section as requested
                     Spacer(modifier = Modifier.height(24.dp))
                     Text("The Plot", color = textColor, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     Text(
@@ -414,14 +491,14 @@ fun MovieDetailDialog(movie: Movie, theme: AppTheme, onDismiss: () -> Unit) {
                     )
                     
                     Spacer(modifier = Modifier.height(24.dp))
-                    Text("Gallery (Extra Scrollable)", color = textColor, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Text("Gallery", color = textColor, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     Spacer(modifier = Modifier.height(8.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         items(movie.galleryStills) { stillUrl ->
                             AsyncImage(
                                 model = stillUrl,
                                 contentDescription = null,
-                                modifier = Modifier.size(150.dp, 100.dp).clip(RoundedCornerShape(8.dp)),
+                                modifier = Modifier.size(200.dp, 130.dp).clip(RoundedCornerShape(8.dp)),
                                 contentScale = ContentScale.Crop
                             )
                         }
@@ -434,7 +511,7 @@ fun MovieDetailDialog(movie: Movie, theme: AppTheme, onDismiss: () -> Unit) {
 }
 
 @Composable
-fun RentalScreen(viewModel: MovieViewModel, theme: AppTheme, config: Configuration) {
+fun RentalScreen(viewModel: MovieViewModel, theme: AppTheme) {
     val rentals by viewModel.rentals.collectAsState()
     val totalPrice = rentals.sumOf { it.days * 450.0 } 
     val textColor = if (theme == AppTheme.LIGHT) Color.Black else Color.White
@@ -445,32 +522,15 @@ fun RentalScreen(viewModel: MovieViewModel, theme: AppTheme, config: Configurati
                 Text("No active rentals.", color = textColor)
             }
         } else {
-            if (config.orientation == Configuration.ORIENTATION_LANDSCAPE) {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    items(rentals) { rental ->
-                        RentalItem(
-                            rental = rental,
-                            theme = theme,
-                            onIncrease = { viewModel.updateRentalDays(rental, true) },
-                            onDecrease = { viewModel.updateRentalDays(rental, false) },
-                            onRemove = { viewModel.removeRental(rental) }
-                        )
-                    }
-                }
-            } else {
-                LazyColumn(modifier = Modifier.weight(1f)) {
-                    items(rentals) { rental ->
-                        RentalItem(
-                            rental = rental,
-                            theme = theme,
-                            onIncrease = { viewModel.updateRentalDays(rental, true) },
-                            onDecrease = { viewModel.updateRentalDays(rental, false) },
-                            onRemove = { viewModel.removeRental(rental) }
-                        )
-                    }
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(rentals, key = { it.id }) { rental ->
+                    RentalItem(
+                        rental = rental,
+                        theme = theme,
+                        onIncrease = { viewModel.updateRentalDays(rental, true) },
+                        onDecrease = { viewModel.updateRentalDays(rental, false) },
+                        onRemove = { viewModel.removeRental(rental) }
+                    )
                 }
             }
         }
@@ -478,7 +538,7 @@ fun RentalScreen(viewModel: MovieViewModel, theme: AppTheme, config: Configurati
         Card(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             colors = CardDefaults.cardColors(containerColor = MovieRed),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(8.dp)
         ) {
             Row(
                 modifier = Modifier.padding(16.dp).fillMaxWidth(),
@@ -498,26 +558,27 @@ fun RentalItem(rental: Rental, theme: AppTheme, onIncrease: () -> Unit, onDecrea
     Card(
         modifier = Modifier.padding(8.dp).fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = textColor.copy(alpha = 0.15f)),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(8.dp),
+        elevation = CardDefaults.cardElevation(2.dp)
     ) {
-        Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             AsyncImage(
                 model = rental.posterUrl,
-                modifier = Modifier.size(60.dp).clip(RoundedCornerShape(8.dp)),
+                modifier = Modifier.size(70.dp).clip(RoundedCornerShape(4.dp)),
                 contentScale = ContentScale.Crop,
                 contentDescription = null
             )
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = rental.title, color = textColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(text = rental.title, color = textColor, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onDecrease) { Icon(Icons.Default.KeyboardArrowDown, null, tint = textColor, modifier = Modifier.size(18.dp)) }
+                    IconButton(onClick = onDecrease) { Icon(Icons.Default.KeyboardArrowDown, null, tint = textColor, modifier = Modifier.size(20.dp)) }
                     Text(text = "${rental.days}", color = textColor, fontSize = 14.sp)
                     IconButton(onClick = onIncrease) { Icon(Icons.Default.KeyboardArrowUp, null, tint = textColor, modifier = Modifier.size(18.dp)) }
                 }
             }
             IconButton(onClick = onRemove) {
-                Icon(Icons.Default.Delete, null, tint = MovieRed, modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.Delete, null, tint = MovieRed, modifier = Modifier.size(24.dp))
             }
         }
     }
